@@ -175,6 +175,46 @@ func New(fs fs.FS, glob string) prometheus.Collector {
 	}
 }
 
+// FindFilesInLeafDirectories finds and processes all files in leaf directories
+func FindFilesInLeafDirectories(fsys fs.FS, root string, process func(filePath string, entry fs.DirEntry) error) error {
+	return fs.WalkDir(fsys, root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			// Check if the directory is a leaf directory
+			isLeaf := true
+			subDirEntries, readErr := fs.ReadDir(fsys, path)
+			if readErr != nil {
+				return readErr
+			}
+
+			// Determine if the directory has any subdirectories
+			for _, entry := range subDirEntries {
+				if entry.IsDir() {
+					isLeaf = false
+					break
+				}
+			}
+
+			// If it's a leaf directory, process its files
+			if isLeaf {
+				for _, entry := range subDirEntries {
+					if !entry.IsDir() {
+						filePath := fmt.Sprintf("%s/%s", path, entry.Name())
+						if err := process(filePath, entry); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+		return nil
+	})
+}
+
+
 // Collect implements prometheus.Collector.
 func (c *cgroupCollector) Collect(m chan<- prometheus.Metric) {
 	matches, err := fs.Glob(c.fs, c.glob)
@@ -182,14 +222,7 @@ func (c *cgroupCollector) Collect(m chan<- prometheus.Metric) {
 		slog.Error("failed to glob cgroups", "error", err)
 	}
 	for _, match := range matches {
-		if err := fs.WalkDir(c.fs, match, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return fmt.Errorf("failed to walk cgroup: %w", err)
-			}
-			if d.IsDir() {
-				return nil
-			}
-
+		if err := FindFilesInLeafDirectories(c.fs, match, func(path string, d fs.DirEntry) error {
 			name := d.Name()
 
 			if col, ok := c.singleCollectors[name]; ok {

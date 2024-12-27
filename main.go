@@ -1,14 +1,10 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"flag"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/arianvp/cgroup-exporter/collector"
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,17 +19,8 @@ func main() {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collector.New(cgroupfs, *cgroup))
 	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
-	ctx, cancelCause := context.WithCancelCause(ctx)
-	go func() {
-		cancelCause(http.ListenAndServe(*addr, nil))
-	}()
-	<-ctx.Done()
-	if err := context.Cause(ctx); err != nil &&
-		!errors.Is(err, context.Canceled) &&
-		!errors.Is(err, context.DeadlineExceeded) &&
-		errors.Is(err, http.ErrServerClosed) {
+	// TODO: cancellation
+	if err := http.ListenAndServe(*addr, nil); err != nil {
 		log.Fatal(err)
 	}
 }
