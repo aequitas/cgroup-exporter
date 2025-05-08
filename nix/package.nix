@@ -4,5 +4,5 @@ buildGoModule {
   pname = "cgroup-exporter";
   version = "0.1.0";
   src = ../.;
-  vendorHash = "sha256-NnvB20rORPS5QF5enbb5KpWaKZ70ybSgfd7wjk21/Cg=";
+  vendorHash = "sha256-f0f8tYmoI6DtuB/K4++gu9b2na/d0ECTaF2zvDijW58=";
 }
